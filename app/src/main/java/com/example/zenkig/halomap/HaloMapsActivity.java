@@ -4,11 +4,14 @@ import android.app.ActionBar;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.FragmentManager;
+import android.content.Intent;
+import android.content.IntentSender;
 import android.graphics.Color;
 import android.support.v4.app.FragmentActivity;
 import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
 import android.widget.TextView;
 
 import com.google.android.gms.common.ConnectionResult;
@@ -27,8 +30,13 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class HaloMapsActivity extends Activity implements
-        GoogleMap.OnMarkerDragListener, GoogleMap.OnMapClickListener, GoogleMap.OnMapLongClickListener, GoogleMap.OnMyLocationChangeListener {
+        GoogleMap.OnMarkerDragListener, GoogleMap.OnMapClickListener, GoogleMap.OnMapLongClickListener, GoogleMap.OnMyLocationChangeListener, GoogleMap.OnInfoWindowClickListener{
+//        GooglePlayServicesClient.ConnectionCallbacks,
+//        GooglePlayServicesClient.OnConnectionFailedListener{
 
     final int RQS_GooglePlayServices = 1;
 
@@ -41,69 +49,96 @@ public class HaloMapsActivity extends Activity implements
     private FragmentManager supportFragmentManager;
 
 
-    // Code for test places on Auto Best Zoom
-    /*
-    private static final LatLng Leicester_Square = new LatLng(51.510278, -0.130278);
-    private static final LatLng Covent_Garden = new LatLng(51.51197, -0.1228);
-    private static final LatLng Piccadilly_Circus = new LatLng(51.51, -0.134444);
-    private static final LatLng Embankment = new LatLng(51.507, -0.122);
-    private static final LatLng Charing_Cross = new LatLng(51.5073, -0.12755);
-    */
+    // Global constants
+    /* Define a request code to send to Google Play services
+     * This code is returned in Activity.onActivityResult
+     */
+    private final static int
+            CONNECTION_FAILURE_RESOLUTION_REQUEST = 9000;
 
+
+    // Info Window Class
+    class MyInfoWindowAdapter implements GoogleMap.InfoWindowAdapter {
+
+        private final View myContentsView;
+
+        MyInfoWindowAdapter(){
+            myContentsView = getLayoutInflater().inflate(R.layout.custom_info_contents, null);
+        }
+
+        @Override
+        public View getInfoContents(Marker marker) {
+            TextView tvTitle = ((TextView)myContentsView.findViewById(R.id.title));
+            tvTitle.setText(marker.getTitle());
+            TextView tvSnippet = ((TextView)myContentsView.findViewById(R.id.snippet));
+            tvSnippet.setText(marker.getSnippet());
+
+            return myContentsView;
+        }
+
+        @Override
+        public View getInfoWindow(Marker marker) {
+            // TODO Auto-generated method stub
+            return null;
+        }
+
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_halo_maps);
         setUpMapIfNeeded();
 
         tvLocInfo = (TextView)findViewById(R.id.locinfo);
 
-        mMap.setMyLocationEnabled(true);
+       // mLocationClient = new LocationClient(this, this, this); // create location client
 
+        mMap.setMyLocationEnabled(true); // location layer does not provide data
         mMap.setMapType(GoogleMap.MAP_TYPE_HYBRID);
 
         mMap.setOnMapClickListener(this);
-        mMap.setOnMapLongClickListener(this);
-        //mMap.setOnMarkerClickListener(this);
-        mMap.setOnMarkerDragListener(this);
 
+        // before loop:
+        List<Marker> markers = new ArrayList<Marker>();
+        mMap.setOnMapLongClickListener(this);
+        // after loop
+        markers.size(); // marker numbers size get
+
+
+        mMap.setOnMarkerDragListener(this);
         mMap.setOnMyLocationChangeListener(this);  // listener for location change added
+        mMap.setInfoWindowAdapter(new MyInfoWindowAdapter()); // Info window listener adaptor added
+        mMap.setOnInfoWindowClickListener(this);
 
 
         markerClicked = false;
 
-        // test code for Auto Best Zoom, in pair with previously defined coordinates
-        /*
-        myMap.addMarker(new MarkerOptions().position(Leicester_Square).title("Leicester Square"));
-        myMap.addMarker(new MarkerOptions().position(Covent_Garden).title("Covent Garden"));
-        myMap.addMarker(new MarkerOptions().position(Piccadilly_Circus).title("Piccadilly Circus"));
-        myMap.addMarker(new MarkerOptions().position(Embankment).title("Embankment"));
-        myMap.addMarker(new MarkerOptions().position(Charing_Cross).title("Charing Cross"));
+        // Getting Google Play status
+        int status = GooglePlayServicesUtil.isGooglePlayServicesAvailable(getBaseContext());
 
-        final View mapView = getFragmentManager().findFragmentById(R.id.map).getView();
-        if (mapView.getViewTreeObserver().isAlive()) {
-            mapView.getViewTreeObserver().addOnGlobalLayoutListener(new OnGlobalLayoutListener() {
-                @SuppressLint("NewApi") // We check which build version we are using.
-                @Override
-                public void onGlobalLayout() {
-                    LatLngBounds bounds = new LatLngBounds.Builder()
-                            .include(Leicester_Square)
-                            .include(Covent_Garden)
-                            .include(Piccadilly_Circus)
-                            .include(Embankment)
-                            .include(Charing_Cross)
-                            .build();
+        // Showing status
+        if(status!=ConnectionResult.SUCCESS){ // Google Play Services are not available
 
-                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN) {
-                        mapView.getViewTreeObserver().removeGlobalOnLayoutListener(this);
-                    } else {
-                        mapView.getViewTreeObserver().removeOnGlobalLayoutListener(this);
-                    }
-                    myMap.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 50));
-                }});
+            int requestCode = 10;
+            Dialog dialog = GooglePlayServicesUtil.getErrorDialog(status, this, requestCode);
+            dialog.show();
+
+        } else { // Google Play Services are available
+
+            // Getting LocationManager object from System Service LOCATION_SERVICE
+            LocationManager locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
+
+            // Creating a criteria object to retrieve provider
+            Criteria criteria = new Criteria();
+
+            // Getting the name of the best provider
+            String provider = locationManager.getBestProvider(criteria, true);
+
+            // Getting Current Location
+            Location location = locationManager.getLastKnownLocation(provider);
         }
-        */
 
     }
 
@@ -171,11 +206,6 @@ public class HaloMapsActivity extends Activity implements
                     = (MapFragment)myFragmentManager.findFragmentById(R.id.map);
             mMap = myMapFragment.getMap();
 
-            //mMap = ((SupportMapFragment)
-            // getSupportFragmentManager().
-            // findFragmentById(R.id.map))
-            // .getMap();
-
             // Check if we were successful in obtaining the map.
             if (mMap != null) {
                 setUpMap();
@@ -190,19 +220,22 @@ public class HaloMapsActivity extends Activity implements
      * This should only be called once and when we are sure that {@link #mMap} is not null.
      */
         private void setUpMap() {
-        mMap.addMarker(new MarkerOptions().position(new LatLng(0, 0)).title("Africa Origin"));
 
-        // add first default marker and show the position
-        Marker marker001 = mMap.addMarker(new MarkerOptions()
-                .position(new LatLng(10, 10))
-                .title("Hello world")
-                .draggable(true)
-                .alpha(0.8f)
-                //.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE))
-                .icon(BitmapDescriptorFactory.fromResource(R.drawable.c1))
-                .title("Melbourne")
-                .snippet("Population: 4,137,400"));
-        marker001.showInfoWindow();
+        Marker paris = mMap.addMarker(new MarkerOptions().position(new LatLng(48.7, 2.338)).title("Paris Area"));
+
+        mMap.moveCamera(CameraUpdateFactory.zoomTo(14f)); // default map zoom level
+
+//        // test first default marker and show the position
+//        Marker marker001 = mMap.addMarker(new MarkerOptions()
+//                .position(new LatLng(10, 10))
+//                .title("Hello world")
+//                .draggable(true)
+//                .alpha(0.8f)
+//                //.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE))
+//                .icon(BitmapDescriptorFactory.fromResource(R.drawable.c1))
+//                .title("Melbourne")
+//                .snippet("Population: 4,137,400"));
+//        marker001.showInfoWindow();
 
     }
 
@@ -210,10 +243,7 @@ public class HaloMapsActivity extends Activity implements
     @Override
     public void onMapClick(LatLng point) {
 
-        int distance = 50000;
-
         tvLocInfo.setText(point.toString()); // Clicked Location
-
         mMap.animateCamera(CameraUpdateFactory.newLatLng(point));
 
         // add Marker upon Circle center
@@ -227,29 +257,31 @@ public class HaloMapsActivity extends Activity implements
 
     @Override
     public void onMapLongClick(LatLng point) {
-        int distance = 50000;
 
+        int disRadius = 200;  // default circle size
+
+//        ArrayList<Markers> markers = new ArrayList<Markers>();
         tvLocInfo.setText("New marker with Circle added@" + point.toString());
-//        mMap.addMarker(new MarkerOptions()
-//                .position(point)
-//                .draggable(true));
-
 
         // Draw circle on map
         CircleOptions circleOptions = new CircleOptions()
                .center(point)   //set center
-               .radius(distance)   //set radius in meters
+               .radius(disRadius)   //set radius in meters
                .fillColor(0x40ff0000)  //semi-transparent
                .strokeColor(Color.RED)
                .strokeWidth(5);
 
-       mMap.addCircle(circleOptions);
-        //myCircle =
+        // Get back the mutable Circle
+        //mMap.addCircle(circleOptions);
+        Circle circle = mMap.addCircle(circleOptions);
+        //To alter the shape of the circle after it has been added,
+        //can call Circle.setRadius() or Circle.setCenter() and provide new values.
 
         // add Marker upon circle center and show the position
-        mMap.addMarker(new MarkerOptions()
+        Marker marker = mMap.addMarker(new MarkerOptions()
                 .position(point)
                 .title(point.toString()));
+        markers.add(marker);
 
         markerClicked = false;
 
@@ -274,27 +306,20 @@ public class HaloMapsActivity extends Activity implements
 
     @Override
     public void onMyLocationChange(Location location) {
+
+        int zoomFactor = 20;
+
         tvLocInfo.setText("New circle added@" + location.toString());  // text info on current location
 
         LatLng locLatLng = new LatLng(location.getLatitude(), location.getLongitude());
         double accuracy = location.getAccuracy();
-        accuracy = accuracy * 5000;
-
-
-        /*   // location info shown on map in realtime
-        double lat = location.getLatitude();
-        double lon = location.getLongitude();
-        tvLocInfo.setText(
-                "lat: " + lat + "\n" +
-                        "lon: " + lon);
-        */
-
+        accuracy = accuracy * zoomFactor;
 
         if(myCircleCenter == null){
             CircleOptions circleOptions = new CircleOptions()
                     .center(locLatLng)   //set center
                     .radius(accuracy)   //set radius in meters
-                    .fillColor(Color.BLUE)
+                    .fillColor(0x400000ff) // my location circle color
                     .strokeColor(Color.BLACK)
                     .strokeWidth(5);
 
@@ -305,13 +330,38 @@ public class HaloMapsActivity extends Activity implements
         }
 
         mMap.animateCamera(CameraUpdateFactory.newLatLng(locLatLng));
+
+        /*   // location info shown on map in realtime
+        double lat = location.getLatitude();
+        double lon = location.getLongitude();
+        tvLocInfo.setText(
+                "lat: " + lat + "\n" +
+                        "lon: " + lon);
+        */
     }
 
+    @Override
+    public void onInfoWindowClick(Marker marker) {
 
-    public FragmentManager getSupportFragmentManager() {
-        return supportFragmentManager;
+        Toast.makeText(getBaseContext(),
+                "See Info Window @" + marker.getId(),
+                Toast.LENGTH_SHORT).show();
+
     }
+
 }
+
+
+//// For adding makers info
+//// before loop:
+//List<Marker> markers = new ArrayList<Marker>();
+//
+//// inside your loop:
+//Marker marker = myMap.addMarker(new MarkerOptions().position(new LatLng(geo1Dub,geo2Dub)));
+//markers.add(marker);
+//
+//// after loop:
+//markers.size(); // default
 
 
 
